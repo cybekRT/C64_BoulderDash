@@ -15,47 +15,13 @@ main:
 	lda	#$00
 	sta	$d020
 	sta	$d021
-
-	lda	#$13
-	sta	$0286
-
-	lda	#$0
-	sta	CNT1
-	lda	CNT2_VAL
-	sta	CNT2
 loop:
-	; lda	$d020
-	; clc
-	; adc	#$1
-	; sta	$d020
-
-	; lda	CNT1
-	; clc
-	; adc	#$1
-	; sta	CNT1
-	; bcc	loop
-
-	; lda	CNT2
-	; clc
-	; adc	#$1
-	; sta	CNT2
-	; bcc	loop
-
-	; lda	CNT2_VAL
-	; sta	CNT2
-
-	; lda	$d021
-	; clc
-	; adc	#$1
-	; sta	$d021
-
-	; inc	$2000,x
-	; inx
-
 	jsr	WaitKeyRelease
 	jsr	WaitKeyPress
 
-	; Clear player
+	jsr	PlayerMove
+
+	; Clear old player
 	clc
 	lda	playerPos
 	adc	#<MAP
@@ -67,6 +33,36 @@ loop:
 	lda	#0
 	sta	($fc,x)
 
+	jsr	PlayerCanMove
+
+	; Draw player
+	clc
+	lda	playerPos
+	adc	#<MAP
+	sta	$fc
+
+	lda	playerPos+1
+	adc	#>MAP
+	sta	$fd
+
+	ldx	#$0
+	lda	#4
+	sta	($fc,x)
+	; lda	($fc,x)
+	; clc
+	; adc	#$1
+	; sta	($fc,x)
+
+	; Draw score
+	clc
+	lda	#$b0
+	adc	score
+	sta	MAP+(24 * 40 + 9)
+
+	jmp	loop
+
+PlayerMove:
+.(
 	; Up
 	lda	#%0001
 	bit	$dc01
@@ -83,70 +79,104 @@ loop:
 	lda	#%1000
 	bit	$dc01
 	beq	GoRight
-
 GoUp:
 	sec
 	lda	playerPos
 	sbc	#40
-	sta	playerPos
+	sta	playerPosNew
 	lda	playerPos+1
 	sbc	#$00
-	sta	playerPos+1
+	sta	playerPosNew+1
 	jmp	GoAfter
 GoDown:
 	clc
 	lda	playerPos
 	adc	#40
-	sta	playerPos
+	sta	playerPosNew
 	lda	playerPos+1
 	adc	#$00
-	sta	playerPos+1
+	sta	playerPosNew+1
 	jmp	GoAfter
 GoLeft:
 	sec
 	lda	playerPos
 	sbc	#$01
-	sta	playerPos
+	sta	playerPosNew
 	lda	playerPos+1
 	sbc	#$00
-	sta	playerPos+1
+	sta	playerPosNew+1
 	jmp	GoAfter
 GoRight:
 	clc
 	lda	playerPos
 	adc	#$01
-	sta	playerPos
+	sta	playerPosNew
 	lda	playerPos+1
 	adc	#$00
-	sta	playerPos+1
+	sta	playerPosNew+1
 	jmp	GoAfter
 GoAfter:
+	rts
+.)
 
-	; Draw player
-	clc
-	lda	playerPos
+PlayerCanMove:
+.(
+	lda	playerPosNew
 	adc	#<MAP
 	sta	$fc
-
-	lda	playerPos+1
+	lda	playerPosNew+1
 	adc	#>MAP
 	sta	$fd
+	ldx	#0
+	lda	($fc,x)
 
-	ldx	#$0;playerPos
-	lda	#4
-	sta	($fc,x)
-	; lda	($fc,x)
-	; clc
-	; adc	#$1
-	; sta	($fc,x)
+	cmp	#$20
+	beq	Ret
+	cmp	#$10
+	bpl	CannotMove
+	cmp	#3
+	beq	Diamond
+	cmp	#5
+	beq	Door
+	jmp	Ret
 
-	jmp	loop
+Diamond:
+	inc	score
+	jmp	Ret
+Door:
+	lda	score
+	cmp	#9
+	beq	FinishGame
+	jmp	CannotMove
+CannotMove:
+	lda	playerPos
+	sta	playerPosNew
+	lda	playerPos+1
+	sta	playerPosNew+1
+	jmp	Ret
+Ret:
+	lda	playerPosNew
+	sta	playerPos
+	lda	playerPosNew+1
+	sta	playerPos+1
+	rts
+.)
+
+FinishGame:
+	lda	#$86
+	sta	MAP+(24 * 40 + 7)
+	lda	#$89
+	sta	MAP+(24 * 40 + 8)
+	lda	#$8E
+	sta	MAP+(24 * 40 + 9)
+	jmp	*
 
 WaitKeyPress:
 	lda	#$FF
 	cmp	$DC01
 	beq	WaitKeyPress
 	rts
+
 WaitKeyRelease:
 	lda	#$FF
 	cmp	$DC01
@@ -155,5 +185,7 @@ WaitKeyRelease:
 
 DATA:
 	playerPos .word 41
+	playerPosNew .word 41
+	score .byte 0
 
 #include"gfx.asm"
